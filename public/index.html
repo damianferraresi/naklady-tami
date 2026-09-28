@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="sk"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Náklady v Prahe</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1d2330;--mu:#6b7280;--bd:#dfe3ea;--ac:#2563eb;--tot:#eef3ff;--eu:#e8f6ee;box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root{--bg:#12151c;--card:#1b202b;--tx:#e8ebf2;--mu:#98a2b3;--bd:#2c3342;--ac:#6ea0ff;--tot:#222b40;--eu:#1f3328}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:860px;margin:0 auto;padding:16px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+h1{font-size:22px;margin:4px 0 14px}
+#st{color:var(--mu);font-size:13px;margin-right:8px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:16px}
+.hd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.hd input{width:80px}
+.sc{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:640px}
+th{font-size:12px;color:var(--mu);text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd)}
+td{padding:7px 8px;border-bottom:1px solid var(--bd)}
+td.r,th.r{text-align:right;white-space:nowrap}
+td.ac{width:1%;white-space:nowrap;text-align:right}
+tr.eur td{background:var(--eu)}
+tr.sum td{background:var(--tot);font-weight:600;border-bottom:0}
+tr.sub td{background:var(--tot);border-bottom:0;color:var(--mu)}
+.b{font-size:11px;background:var(--ac);color:#fff;border-radius:5px;padding:1px 5px;margin-left:6px}
+input{width:100%;padding:6px;border:1px solid var(--bd);border-radius:7px;background:var(--bg);color:var(--tx);font:inherit}
+.v{display:flex;align-items:center;gap:6px}
+button{border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:8px;padding:6px 11px;font:inherit;cursor:pointer}
+button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+button.s{font-size:13px;padding:3px 8px;color:var(--mu)}
+.bar{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.tot{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.tot div{background:var(--tot);border-radius:10px;padding:10px}
+.tot span{display:block;font-size:12px;color:var(--mu)}
+.tot strong{font-size:18px}
+.big{outline:2px solid var(--ac)}
+.note{color:var(--mu);font-size:12px;margin-top:8px}
+#lock{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:9}
+#lock h2{margin:0;font-size:14px;letter-spacing:.35em;text-transform:uppercase;color:var(--ac);font-weight:500}
+#lock input{width:220px;text-align:center;font-size:24px;letter-spacing:.4em;padding:12px}
+#lock small{color:var(--mu);min-height:1.2em}
+</style></head><body>
+<div id="lock"><h2>Zadajte PIN</h2><input id="pin" type="password" inputmode="numeric" autocomplete="off" autofocus><small id="msg"></small></div>
+<main id="app" hidden>
+<div class="top"><h1>Náklady v Prahe</h1><div><span id="st"></span><button class="s" id="out">Zamknúť</button></div></div>
+<div id="periods"></div>
+<button class="p" id="addP">+ Nové obdobie</button>
+<div class="card" style="margin-top:16px"><div class="tot" id="tot"></div>
+<div class="note">Celkom v EUR = súčet CZK ÷ kurz za každé obdobie (z nezaokrúhlených súm) + položky v EUR, zaokrúhlené nahor až na konci.</div></div>
+</main>
+<script>
+let PIN=sessionStorage.getItem('pin')||'',ROLE='',S=null,T;
+const $=id=>document.getElementById(id);
+const n=v=>parseFloat(String(v).replace(',','.'))||0;
+const up=x=>Math.ceil(Math.round(x*1e6)/1e4)/100;
+const f=x=>x.toLocaleString('sk-SK',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const fd=d=>d?d.split('-').reverse().join('.'):'–';
+const api=(m,b)=>fetch('/api/data',{method:m,headers:{'x-pin':PIN,'content-type':'application/json'},body:b});
+
+async function load(){
+  const r=await api('GET');
+  if(!r.ok)return false;
+  const j=await r.json();ROLE=j.role;
+  S=j.data&&j.data.periods?j.data:{periods:[{rate:'24.5',rows:[]}]};
+  S.periods.forEach(p=>p.rows.forEach(r=>r.edit=false));
+  return true;
+}
+async function unlock(p){
+  PIN=p;
+  try{if(await load()){sessionStorage.setItem('pin',p);$('lock').hidden=true;$('app').hidden=false;
+    $('addP').hidden=ROLE!=='edit';$('st').textContent=ROLE==='edit'?'':'Iba na čítanie';render();return}
+  $('msg').textContent='Nesprávny PIN';}catch(e){$('msg').textContent='Chyba pripojenia'}
+  PIN='';sessionStorage.removeItem('pin');$('pin').value='';
+}
+$('pin').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.value)unlock(e.target.value)});
+$('out').onclick=()=>{sessionStorage.removeItem('pin');location.reload()};
+if(PIN)unlock(PIN);else $('lock').hidden=false;
+$('lock').hidden=!!PIN&&false;
+setInterval(async()=>{if(ROLE==='view'&&!document.hidden){try{if(await load())render()}catch(e){}}},30000);
+
+function save(){
+  if(ROLE!=='edit')return;
+  $('st').textContent='Ukladám…';clearTimeout(T);
+  T=setTimeout(async()=>{
+    try{const r=await api('PUT',JSON.stringify(S,(k,v)=>k==='edit'?undefined:v));$('st').textContent=r.ok?'Uložené ✓':'Chyba ukladania'}
+    catch(e){$('st').textContent='Chyba ukladania'}
+  },500);
+}
+
+function row(i,r,j){
+  const czk=r.cur==='czk',id=`data-p="${i}" data-r="${j}"`,ed=ROLE==='edit';
+  if(r.edit&&ed)return `<tr class="${czk?'':'eur'}">
+   <td><input ${id} data-f="a" list="dl-a" autocomplete="off" placeholder="Na čo" value="${esc(r.a)}"></td>
+   <td><input ${id} data-f="b" list="dl-b" autocomplete="off" placeholder="Kde" value="${esc(r.b)}"></td>
+   <td><input type="date" ${id} data-f="d" value="${esc(r.d||'')}"></td>
+   <td colspan="2"><input ${id} data-f="v" inputmode="decimal" placeholder="Suma (${czk?'CZK':'EUR'})" value="${esc(r.v)}"></td>
+   <td class="ac"><button class="p s" data-save="${i}-${j}">Uložiť</button> <button class="s" data-delr="${i}-${j}">×</button></td></tr>`;
+  return `<tr class="${czk?'':'eur'}" ${ed?`draggable="true" data-dr="${i}-${j}" style="cursor:grab"`:''}>
+   <td>${esc(r.a)||'–'}${czk?'':'<span class="b">€</span>'}</td><td>${esc(r.b)||'–'}</td><td>${fd(r.d)}</td>
+   <td class="r">${czk?f(n(r.v))+' Kč':'–'}</td><td class="r" id="d-${i}-${j}"></td>
+   <td class="ac">${ed?`<button class="s" data-edit="${i}-${j}">Upraviť</button> <button class="s" data-copy="${i}-${j}" title="Kopírovať">⧉</button> <button class="s" data-delr="${i}-${j}">×</button>`:''}</td></tr>`;
+}
+
+function render(){
+  const ed=ROLE==='edit';
+  const u=k=>[...new Set(S.periods.flatMap(p=>p.rows.map(r=>String(r[k]).trim()).filter(Boolean)))].map(v=>`<option value="${esc(v)}">`).join('');
+  const dl=`<datalist id="dl-a">${u('a')}</datalist><datalist id="dl-b">${u('b')}</datalist>`;
+  $('periods').innerHTML=S.periods.map((p,i)=>`
+  <div class="card" data-card="${i}"><div class="hd"><b>Obdobie ${i+1}</b><span>Kurz (CZK za 1 EUR):</span>
+  ${ed?`<input data-p="${i}" data-f="rate" inputmode="decimal" value="${esc(p.rate)}">`:`<b>${esc(p.rate)}</b>`}
+  ${ed&&S.periods.length>1?`<button class="s" data-delp="${i}">Zmazať obdobie</button>`:''}</div>
+  <div class="sc"><table><tr><th>Na čo</th><th>Kde</th><th>Dátum</th><th class="r">CZK</th><th class="r">≈ EUR</th><th></th></tr>
+  ${p.rows.map((r,j)=>row(i,r,j)).join('')||'<tr><td colspan="6" style="color:var(--mu)">Zatiaľ nič.</td></tr>'}
+  <tr class="sum"><td colspan="3">Spolu obd. ${i+1}</td><td class="r" id="sc-${i}"></td><td class="r" id="sd-${i}"></td><td></td></tr>
+  <tr class="sub"><td colspan="4">Z toho kúpené len v EUR</td><td class="r" id="se-${i}"></td><td></td></tr>
+  </table></div>
+  ${ed?`<div class="bar"><button class="p" data-add="${i}-czk">+ Položka v CZK</button><button class="p" data-add="${i}-eur">+ Položka v EUR</button></div>`:''}</div>`).join('')+dl;
+  update();
+}
+
+function update(){
+  let tc=0,te=0,tz=0;
+  S.periods.forEach((p,i)=>{
+    const rate=n(p.rate);let c=0,e=0;
+    p.rows.forEach((r,j)=>{
+      const el=$(`d-${i}-${j}`),v=n(r.v);
+      if(r.cur==='czk')c+=v;else e+=v;
+      if(el)el.textContent=r.cur==='czk'?(rate>0?f(up(v/rate))+' €':''):f(v)+' €';
+    });
+    const z=rate>0?c/rate:0;tc+=c;te+=e;tz+=z;
+    $('sc-'+i).textContent=f(c)+' Kč';$('sd-'+i).textContent=f(up(z))+' €';$('se-'+i).textContent=f(e)+' €';
+  });
+  $('tot').innerHTML=
+   `<div><span>Minuté v CZK</span><strong>${f(tc)} Kč</strong></div>
+    <div><span>CZK prepočítané na EUR</span><strong>${f(up(tz))} €</strong></div>
+    <div><span>Kúpené len v EUR</span><strong>${f(te)} €</strong></div>
+    <div class="big"><span>Spolu v EUR</span><strong>${f(up(tz+te))} €</strong></div>`;
+}
+
+document.addEventListener('input',ev=>{
+  const t=ev.target,p=t.dataset.p;
+  if(p===undefined||ROLE!=='edit')return;
+  if(t.dataset.f==='rate')S.periods[p].rate=t.value;
+  else S.periods[p].rows[t.dataset.r][t.dataset.f]=t.value;
+  save();update();
+});
+document.addEventListener('click',ev=>{
+  if(ROLE!=='edit')return;
+  const d=ev.target.dataset,ij=k=>d[k].split('-');
+  if(d.add!==undefined){const[i,cur]=ij('add');S.periods[i].rows.push({a:'',b:'',cur,v:'',d:today(),edit:true});}
+  else if(d.copy!==undefined){const[i,j]=ij('copy');S.periods[i].rows.splice(+j+1,0,{...S.periods[i].rows[j],d:today(),edit:true});}
+  else if(d.edit!==undefined){const[i,j]=ij('edit');S.periods[i].rows[j].edit=true;}
+  else if(d.save!==undefined){const[i,j]=ij('save');const r=S.periods[i].rows[j];
+    if(!r.a&&!r.b&&r.v==='')S.periods[i].rows.splice(j,1);else r.edit=false;}
+  else if(d.delr!==undefined){const[i,j]=ij('delr');S.periods[i].rows.splice(j,1);}
+  else if(d.delp!==undefined){if(!confirm('Zmazať celé obdobie?'))return;S.periods.splice(d.delp,1);}
+  else if(ev.target.id==='addP'){const l=S.periods[S.periods.length-1];S.periods.push({rate:l?l.rate:'25',rows:[]});}
+  else return;
+  save();render();
+});
+let DR=null;
+document.addEventListener('dragstart',ev=>{const t=ev.target.closest&&ev.target.closest('tr[data-dr]');if(t&&ROLE==='edit'){DR=t.dataset.dr;ev.dataTransfer.effectAllowed='copy';}});
+document.addEventListener('dragover',ev=>{if(DR&&ev.target.closest('[data-card]'))ev.preventDefault();});
+document.addEventListener('drop',ev=>{
+  const c=ev.target.closest('[data-card]');if(!DR||!c)return;ev.preventDefault();
+  const[i,j]=DR.split('-'),r=S.periods[i]&&S.periods[i].rows[j];DR=null;if(!r)return;
+  S.periods[+c.dataset.card].rows.push({...r,d:today(),edit:false});save();render();
+});
+document.addEventListener('dragend',()=>{DR=null});
+</script></body></html>
