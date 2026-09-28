@@ -118,9 +118,9 @@ function render(){
   ${ed&&S.periods.length>1?`<button class="s" data-delp="${i}">Zmazať obdobie</button>`:''}</div>
   <div class="sc"><table><tr><th>Na čo</th><th>Kde</th><th>Dátum</th><th class="r">CZK</th><th class="r">≈ EUR</th><th></th></tr>
   ${p.rows.map((r,j)=>row(i,r,j)).join('')||'<tr><td colspan="6" style="color:var(--mu)">Zatiaľ nič.</td></tr>'}
-  <tr class="sum"><td colspan="3">Spolu obd. ${i+1}</td><td class="r" id="sc-${i}"></td><td class="r" id="sd-${i}"></td><td></td></tr>
-  <tr class="sub"><td colspan="4">+ Kúpené iba v EUR</td><td class="r" id="se-${i}"></td><td></td></tr>
-  <tr class="sum"><td colspan="4">Spolu</td><td class="r" id="st-${i}"></td><td></td></tr>
+  <tr class="sum"><td colspan="3">Platby v CZK v období ${i+1}</td><td class="r" id="sc-${i}"></td><td class="r" id="sd-${i}"></td><td></td></tr>
+  <tr class="sub"><td colspan="4">Platby v EUR v období ${i+1}</td><td class="r" id="se-${i}"></td><td></td></tr>
+  <tr class="sum"><td colspan="4">Spolu v období ${i+1}</td><td class="r" id="st-${i}"></td><td></td></tr>
   </table></div>
   ${ed?`<div class="bar"><button class="p" data-add="${i}-czk">+ Položka v CZK</button><button class="p" data-add="${i}-eur">+ Položka v EUR</button></div>`:''}</div>`).join('')+dl;
   update();
