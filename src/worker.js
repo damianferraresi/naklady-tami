@@ -1,6 +1,6 @@
 // PINy: VIEW = len na čítanie, EDIT = aj úpravy
-const VIEW_PIN = '5700';
-const EDIT_PIN = '100100';
+const VIEW_PIN = '2233';
+const EDIT_PIN = '8325';
 
 const json = (o, s = 200) =>
   new Response(JSON.stringify(o), { status: s, headers: { 'content-type': 'application/json' } });
