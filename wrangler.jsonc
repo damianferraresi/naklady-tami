@@ -4,6 +4,6 @@
   "compatibility_date": "2025-09-01",
   "assets": { "directory": "./public", "binding": "ASSETS" },
   "kv_namespaces": [
-    { "binding": "DATA", "id": "7ac901c453454198a9e36311c9359479" }
+    { "binding": "DATA", "id": "7475afb516694ccb9330d7bcb2443e2b" }
   ]
 }
